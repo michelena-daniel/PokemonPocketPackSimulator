@@ -2,10 +2,17 @@
   <v-container>
     <!-- Title Section -->
     <v-row justify="center" class="my-8">
-      <v-col cols="12" class="text-center">
-        <v-text variant="h3" class="font-weight-bold">
-          Pokemon TCG Pocket Booster Simulator
-        </v-text>
+      <v-col cols="12" class="d-flex justify-center">
+        <v-card
+          class="title-card"
+          outlined
+        >
+          <v-card-title class="text-center text-white">
+            <span class="title-text">
+              Pokemon TCG Pocket Booster Simulator
+            </span>
+          </v-card-title>
+        </v-card>
       </v-col>
     </v-row>
     <v-row justify="space-between" align="center">
@@ -58,7 +65,7 @@
               class="d-flex justify-center mb-4"
             >
               <v-card class="card-image-container">
-                <v-img :src="card.imageUrl" :alt="card.Card" class="card-image"></v-img>
+                <v-img :src="card.imageUrl" :alt="card.card" class="card-image"></v-img>
               </v-card>
             </v-col>
           </v-row>
@@ -81,13 +88,13 @@ import boosterPack2 from '@/assets/Images/genetic-apex-charizard-booster.png';
 import boosterPack3 from '@/assets/Images/genetic-apex-pikachu-booster.png';
 
 interface Card {
-  CardId: string;
-  Card: string;
-  Pack: string;
-  Rarity: string;
-  Cards1to3: string;
-  FourthCard: string;
-  FifthCard: string;
+  cardId: string;
+  card: string;
+  pack: string;
+  rarity: string;
+  cards1to3: string;
+  fourthcard: string;
+  fifthcard: string;
   imageUrl: string;
 }
 
@@ -120,12 +127,16 @@ export default defineComponent({
       boosterPack3,
       selectedCards: [] as Card[],
       dialog: false,
+      loading: false,
     };
   },
   methods: {
     selectBoosterPack(pack: string) {
       this.selectedCards = [];
+      this.loading = true;
+
       console.log(`Selected booster pack: ${pack}`);
+
       // filter cards by pack
       const cardsByPack = this.getCardsByPack(pack);
       // Select first three cards
@@ -142,12 +153,17 @@ export default defineComponent({
       const fifthCardOptions = this.getCardsByRarity(fifthCardRarity, cardsByPack);
       const fifthCard = this.getRandomCards(1, fifthCardOptions);
       this.selectedCards.push(fifthCard[0]);
-
-
-      // // Select 5 random cards
-      // this.selectedCards = this.getRandomCards(5, cardsByPack);
       // Open the modal to display selected cards
-      this.dialog = true;
+
+      this.preloadImages(this.selectedCards.map(card => card.imageUrl))
+        .then(() => {
+          // All images have loaded, set selectedCards and open modal
+          //this.selectedCards = selectedCards;
+          this.dialog = true;
+        })
+        .catch((error: string) => {
+          console.error('Error loading images:', error);
+        });      
     },
     selectRarity(probabilities: { rarity: string; probability: number }[]): string {
       const rand = Math.random() * 100;
@@ -159,15 +175,14 @@ export default defineComponent({
           return rarity;
         }
       }
-
       // Fallback in case of rounding errors
       return probabilities[probabilities.length - 1].rarity;
     },
     getCardsByPack(pack: string): Card[]{
-      return cardsData.filter((card) => card.Pack === pack || card.Pack === 'All');
+      return cardsData.filter((card) => card.pack === pack || card.pack === 'All');
     },
     getCardsByRarity(rarity: string, cards: Card[]){
-      return cards.filter((card) => card.Rarity === rarity)
+      return cards.filter((card) => card.rarity === rarity)
     },
     getRandomCards(count: number, cards: Card[]): Card[] {
       // Fisher-Yates Shuffle for uniform randomness
@@ -178,6 +193,18 @@ export default defineComponent({
       }
       return shuffled.slice(0, count);
     },
+    preloadImages(imageUrls: string[]) {
+      const promises = imageUrls.map(url => {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.src = url;
+          img.onload = resolve;
+          img.onerror = reject;
+        });
+      });
+
+      return Promise.all(promises);
+    }
   },
 });
 </script>
@@ -218,5 +245,19 @@ export default defineComponent({
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.title-card {
+  background: linear-gradient(135deg, #ff9800, #ff5722);
+  color: #fff;
+  border-radius: 16px;
+  box-shadow: 0px 8px 16px rgba(0, 0, 0, 0.25);
+  padding: 16px;
+}
+
+.title-text {
+  font-weight: bold;
+  font-size: 1.1rem;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
 }
 </style>
