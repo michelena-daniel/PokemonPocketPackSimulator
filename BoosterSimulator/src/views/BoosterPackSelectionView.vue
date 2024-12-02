@@ -11,7 +11,7 @@
     <v-row justify="space-between" align="center">
       <!-- Booster Pack 1 -->
       <v-col cols="12" sm="4" class="d-flex justify-center">
-        <v-card class="booster-pack-card" @click="selectBoosterPack('pack1')">
+        <v-card class="booster-pack-card" @click="selectBoosterPack('Mewtwo')">
           <v-img
             :src="boosterPack1"
             alt="Genetic Apex Mewtwo Booster Pack"
@@ -22,7 +22,7 @@
 
       <!-- Booster Pack 2 -->
       <v-col cols="12" sm="4" class="d-flex justify-center">
-        <v-card class="booster-pack-card" @click="selectBoosterPack('pack2')">
+        <v-card class="booster-pack-card" @click="selectBoosterPack('Charizard')">
           <v-img
             :src="boosterPack2"
             alt="Genetic Apex Charizard Booster Pack"
@@ -33,7 +33,7 @@
 
       <!-- Booster Pack 3 -->
       <v-col cols="12" sm="4" class="d-flex justify-center">
-        <v-card class="booster-pack-card" @click="selectBoosterPack('pack3')">
+        <v-card class="booster-pack-card" @click="selectBoosterPack('Pikachu')">
           <v-img
             :src="boosterPack3"
             alt="Genetic Apex Pikachu Booster Pack"
@@ -91,6 +91,26 @@ interface Card {
   imageUrl: string;
 }
 
+export const rarityProbabilities4th: { rarity: string; probability: number }[] = [
+  { rarity: '♢♢', probability: 90 },
+  { rarity: '♢♢♢', probability: 5 },
+  { rarity: '♢♢♢♢', probability: 1.666 },
+  { rarity: '☆', probability: 2.572 },
+  { rarity: '☆☆', probability: 0.5 },
+  { rarity: '☆☆☆', probability: 0.222 },
+  { rarity: '♛', probability: 0.04 },
+];
+
+export const rarityProbabilities5th: { rarity: string; probability: number }[] = [
+  { rarity: '♢♢', probability: 60 },
+  { rarity: '♢♢♢', probability: 20 },
+  { rarity: '♢♢♢♢', probability: 6.664 },
+  { rarity: '☆', probability: 10.288 },
+  { rarity: '☆☆', probability: 2 },
+  { rarity: '☆☆☆', probability: 0.888 },
+  { rarity: '♛', probability: 0.16 },
+];
+
 export default defineComponent({
   name: 'BoosterPackSelectionView',
   data() {
@@ -103,28 +123,55 @@ export default defineComponent({
     };
   },
   methods: {
-    /**
-     * Handles the selection of a booster pack.
-     * @param pack - The identifier of the selected booster pack.
-     */
     selectBoosterPack(pack: string) {
+      this.selectedCards = [];
       console.log(`Selected booster pack: ${pack}`);
+      // filter cards by pack
+      const cardsByPack = this.getCardsByPack(pack);
+      // Select first three cards
+      const cards1to3Options = this.getCardsByRarity('♢', cardsByPack);
+      const cards1to3 = this.getRandomCards(3, cards1to3Options);
+      this.selectedCards.push(...cards1to3);
+      // Select fourth card
+      const fourthCardRarity = this.selectRarity(rarityProbabilities4th);
+      const fourthCardOptions = this.getCardsByRarity(fourthCardRarity, cardsByPack);
+      const fourthCard = this.getRandomCards(1, fourthCardOptions);
+      this.selectedCards.push(fourthCard[0]);
+      //Select fifth card
+      const fifthCardRarity = this.selectRarity(rarityProbabilities5th);
+      const fifthCardOptions = this.getCardsByRarity(fifthCardRarity, cardsByPack);
+      const fifthCard = this.getRandomCards(1, fifthCardOptions);
+      this.selectedCards.push(fifthCard[0]);
 
-      // Select 5 random cards
-      this.selectedCards = this.getRandomCards(5);
 
+      // // Select 5 random cards
+      // this.selectedCards = this.getRandomCards(5, cardsByPack);
       // Open the modal to display selected cards
       this.dialog = true;
     },
+    selectRarity(probabilities: { rarity: string; probability: number }[]): string {
+      const rand = Math.random() * 100;
+      let cumulative = 0;
 
-    /**
-     * Selects a specified number of random cards from the JSON data.
-     * @param count - Number of cards to select.
-     * @returns An array of randomly selected card objects.
-     */
-    getRandomCards(count: number): Card[] {
-      // Implementing Fisher-Yates Shuffle for uniform randomness
-      const shuffled = [...cardsData] as Card[];
+      for (const { rarity, probability } of probabilities) {
+        cumulative += probability;
+        if (rand < cumulative) {
+          return rarity;
+        }
+      }
+
+      // Fallback in case of rounding errors
+      return probabilities[probabilities.length - 1].rarity;
+    },
+    getCardsByPack(pack: string): Card[]{
+      return cardsData.filter((card) => card.Pack === pack || card.Pack === 'All');
+    },
+    getCardsByRarity(rarity: string, cards: Card[]){
+      return cards.filter((card) => card.Rarity === rarity)
+    },
+    getRandomCards(count: number, cards: Card[]): Card[] {
+      // Fisher-Yates Shuffle for uniform randomness
+      const shuffled = [...cards] as Card[];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
