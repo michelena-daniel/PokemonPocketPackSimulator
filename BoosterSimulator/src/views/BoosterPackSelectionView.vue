@@ -50,29 +50,43 @@
       </v-col>
     </v-row>
 
-    <!-- Selected Cards Modal -->
+    <!-- Modal Section -->
     <v-dialog v-model="dialog" max-width="800px">
       <v-card>
-        <v-card-title class="headline">Your Booster Pack Cards</v-card-title>
+        <v-card-title class="text-center">Your Booster Pack Cards</v-card-title>
         <v-card-text>
-          <v-row>
-            <v-col
-              v-for="(card, index) in selectedCards"
-              :key="index"
-              cols="6"
-              sm="4"
-              md="2"
-              class="d-flex justify-center mb-4"
+          <div class="cards">
+            <div
+              v-for="(card) in selectedCards"
+              :key="card.uniqueId"
+              class="card-container"
+              :class="{ flipped: flippedStates[card.uniqueId] }"
+              @click="flipCard(card.uniqueId)"
             >
-              <v-card class="card-image-container">
-                <v-img :src="card.imageUrl" :alt="card.card" class="card-image"></v-img>
-              </v-card>
-            </v-col>
-          </v-row>
+              <!-- Card Front (Face Down) -->
+              <div class="card-front">
+                <img
+                  src="@/assets/Images/facedown.png"
+                  alt="Card Back"
+                  class="card-image"
+                />
+              </div>
+
+              <!-- Card Back (Revealed Content) -->
+              <div class="card-back">
+                <img
+                  :src="card.imageUrl"
+                  alt="Card"
+                  class="card-image"
+                />
+                <h3>{{ card.card }}</h3>
+                <p>Rarity: {{ card.rarity }}</p>
+              </div>
+            </div>
+          </div>
         </v-card-text>
         <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="primary" variant="text" @click="dialog = false">Close</v-btn>
+          <v-btn color="primary" @click="dialog = false">Close</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -82,6 +96,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import cardsData from '@/data/cards.json';
+import { useCollectionStore } from '@/stores/collectionStore';
 
 import boosterPack1 from '@/assets/Images/genetic-apex-mewtwo-booster.png';
 import boosterPack2 from '@/assets/Images/genetic-apex-charizard-booster.png';
@@ -96,6 +111,10 @@ interface Card {
   fourthcard: string;
   fifthcard: string;
   imageUrl: string;
+}
+
+interface SelectedCard extends Card {
+  uniqueId: number;
 }
 
 export const rarityProbabilities4th: { rarity: string; probability: number }[] = [
@@ -125,15 +144,17 @@ export default defineComponent({
       boosterPack1,
       boosterPack2,
       boosterPack3,
-      selectedCards: [] as Card[],
+      selectedCards: [] as SelectedCard[],
       dialog: false,
       loading: false,
+      flippedStates: {} as Record<number, boolean>,
+      nextUniqueId: 1
     };
   },
   methods: {
     selectBoosterPack(pack: string) {
       this.selectedCards = [];
-      this.loading = true;
+      this.dialog = false;
 
       console.log(`Selected booster pack: ${pack}`);
 
@@ -142,23 +163,34 @@ export default defineComponent({
       // Select first three cards
       const cards1to3Options = this.getCardsByRarity('♢', cardsByPack);
       const cards1to3 = this.getRandomCards(3, cards1to3Options);
-      this.selectedCards.push(...cards1to3);
+      const mappedCards1to3 = this.mapCardsToSelected(cards1to3);
+      this.selectedCards.push(...mappedCards1to3);
       // Select fourth card
       const fourthCardRarity = this.selectRarity(rarityProbabilities4th);
       const fourthCardOptions = this.getCardsByRarity(fourthCardRarity, cardsByPack);
       const fourthCard = this.getRandomCards(1, fourthCardOptions);
-      this.selectedCards.push(fourthCard[0]);
+      const mappedFourthCard = this.mapCardsToSelected(fourthCard);
+      this.selectedCards.push(mappedFourthCard[0]);
       //Select fifth card
       const fifthCardRarity = this.selectRarity(rarityProbabilities5th);
       const fifthCardOptions = this.getCardsByRarity(fifthCardRarity, cardsByPack);
       const fifthCard = this.getRandomCards(1, fifthCardOptions);
-      this.selectedCards.push(fifthCard[0]);
-      // Open the modal to display selected cards
+      const mappedFifthCard = this.mapCardsToSelected(fifthCard);
+      this.selectedCards.push(mappedFifthCard[0]);
+      // Add unique cards to the collection
+      const collectionStore = useCollectionStore();
+      this.selectedCards.forEach((card) => {
+        collectionStore.addCard(card);
+      });
+      // Initialize flippedStates for the selected cards
+      this.flippedStates = this.selectedCards.reduce((acc, card) => {
+        acc[card.cardId] = false;
+        return acc;
+      }, {} as Record<string, boolean>);
 
+      // Open the modal to display selected cards
       this.preloadImages(this.selectedCards.map(card => card.imageUrl))
         .then(() => {
-          // All images have loaded, set selectedCards and open modal
-          //this.selectedCards = selectedCards;
           this.dialog = true;
         })
         .catch((error: string) => {
@@ -192,6 +224,15 @@ export default defineComponent({
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
       }
       return shuffled.slice(0, count);
+    },
+    mapCardsToSelected(cards: Card[]) {
+      return cards.map(card => ({
+          ...card,
+          uniqueId: this.nextUniqueId++,
+      }));
+    },
+    flipCard(uniqueId: number) {
+      this.flippedStates[uniqueId] = !this.flippedStates[uniqueId];
     },
     preloadImages(imageUrls: string[]) {
       const promises = imageUrls.map(url => {
@@ -231,17 +272,21 @@ export default defineComponent({
 .card-image-container {
   width: 100%;
   height: 0;
-  padding-bottom: 140%; /* Adjusts aspect ratio */
+  padding-bottom: 140%;
   position: relative;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+}
+
 .card-image {
-  position: absolute;
-  top: 0;
-  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -259,5 +304,42 @@ export default defineComponent({
   font-weight: bold;
   font-size: 1.1rem;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.card-container {
+  perspective: 1000px;
+  width: 200px;
+  height: 300px;
+  position: relative;
+  transform-style: preserve-3d;
+}
+
+.card-front,
+.card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.6s;
+}
+
+.card-front {
+  transform: rotateY(0deg);
+  z-index: 2;
+}
+
+.card-back {
+  transform: rotateY(-180deg);
+  z-index: 1;
+}
+
+.card-container.flipped .card-front {
+  transform: rotateY(180deg);
+}
+
+.card-container.flipped .card-back {
+  transform: rotateY(0deg);
 }
 </style>
